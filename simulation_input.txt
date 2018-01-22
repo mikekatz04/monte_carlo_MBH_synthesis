@@ -1,0 +1,87 @@
+ #Comment out with '#' symbol
+
+#This text file is the input to monte_carlo_simulation main which calles project_simulation full. This file guides the simulation by inputing the following:
+# - Base file to draw a kernel density estimate (text file)
+# - Necessary quantities to take from the file for simulation
+# - Which evolution prescription to use from evolve.py
+# - file output information
+
+#code running information
+
+#number of simulations (allows for running in a loop within same job on super computer
+num_sims: 2
+
+#number of processors
+num_processors: 4
+
+#number of boxes at a time
+num_splits: 500
+
+Base_Simulation: Illustris_1
+
+data_file_location: .
+
+data_file_name: Ill1_simulation_input_numerical.txt
+skip_lines: 17
+delimiter: tab
+
+output_file_location: .
+out_file_name_start: numerical_test_
+out_file_name_end: .hdf5
+
+evolve_func_key: Evolve_numerical_FD
+
+#analytical
+#evolve_func_args: M1 M2 Redshift
+
+#needed_values: time_of_merger M1 M2 Coordinate_x Coordinate_y Coordinate_z Redshift
+
+#needed_values_units: Years Solar_Masses Solar_Masses ckpc ckpc ckpc None
+
+
+
+#numerical
+evolve_func_args: M1 M2 Subhalo_Vel_Disp_1 Subhalo_Vel_Disp_2 Subhalo_gamma_Star_1 Subhalo_gamma_Star_2 Separation Redshift Eccentricity_0
+
+needed_values: time_of_merger M1 M2 Coordinate_x Coordinate_y Coordinate_z Redshift Subhalo_Vel_Disp_1 Subhalo_Vel_Disp_2 Subhalo_gamma_Star_1 Subhalo_gamma_Star_2 Subhalo_r0_1 Subhalo_r0_2 Separation
+
+#eccentricity is added in the code
+
+needed_values_units: Years Solar_Masses Solar_Masses ckpc ckpc ckpc None km/s km/s None None pc pc kpc
+
+eccentricity: 0.3
+
+e_interp_file: e_interp_test.txt
+
+#The following values represent information for generation per box
+
+#mean number for normal distribution per box
+mean: 10
+
+#standard deviation as a percent of the mean
+std_dev_percent: 0.01
+
+function_for_num: normal_distribution
+
+
+#box side length --> cMpc
+box_side_length: 106.5
+
+#max/min time difference of arrival wave finish --> years
+max_time_diff: 1e7
+min_time_diff: -30.0
+
+LISA_mission_start_year: 2030.0
+LISA_mission_duration: 4.0
+
+
+
+
+
+
+
+
+
+
+
+
