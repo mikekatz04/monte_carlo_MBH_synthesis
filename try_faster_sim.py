@@ -54,12 +54,25 @@ class SimulationRun:
 
 	def prep_interpolations(self):
 		#prepare for redshift interpolation in the parallel function
-		zs = np.logspace(-4,4, 100000)
-		dcom = cosmo.comoving_distance(zs).value*1000 #kpc
-		ltt = cosmo.lookback_time(zs).value*1e9 #years
-		age = cosmo.age(zs).value*1e9 #years
-		self.sid['dcom_ltt_interp'] = interp1d(dcom,ltt)
-		self.sid['z_age_interp'] = interp1d(age, zs)
+		if 'dcom_ltt_interp.pkl' not in os.listdir(self.sid['input_info']['data_file_location']) or 'z_age_interp.pkl' not in os.listdir(self.sid['input_info']['data_file_location']):
+			zs = np.logspace(-4,4, 100000)
+			dcom = cosmo.comoving_distance(zs).value*1000 #kpc
+			ltt = cosmo.lookback_time(zs).value*1e9 #years
+			age = cosmo.age(zs).value*1e9 #years
+			self.sid['dcom_ltt_interp'] = interp1d(dcom,ltt)
+			with open(self.sid['input_info']['data_file_location'] + '/' + 'dcom_ltt_interp.pkl', 'wb') as f:
+				dill.dump(self.sid['dcom_ltt_interp'], f, dill.HIGHEST_PROTOCOL)
+
+			self.sid['z_age_interp'] = interp1d(age, zs)
+			with open(self.sid['input_info']['data_file_location'] + '/' + 'z_age_interp.pkl', 'wb') as f:
+				dill.dump(self.sid['z_age_interp'], f, dill.HIGHEST_PROTOCOL)
+
+		else:
+			with open(self.sid['input_info']['data_file_location'] + '/' + 'dcom_ltt_interp.pkl', 'rb') as f:
+				self.sid['dcom_ltt_interp'] = dill.load(f)
+			with open(self.sid['input_info']['data_file_location'] + '/' + 'z_age_interp.pkl', 'rb') as f:
+				self.sid['z_age_interp'] = dill.load(f)
+
 		return
 
 	def prep_box_coordinates(self):
@@ -113,6 +126,7 @@ class SimulationRun:
 		#check = [parallel_func(*self.args[i]) for i in [100, 1000, 3000, 5000]]
 		#pdb.set_trace()
 
+		para_start_time = time.time()
 		results = []
 		print('numprocs', self.num_processors)
 		with Pool(self.num_processors) as pool:
@@ -120,10 +134,11 @@ class SimulationRun:
 			results = [pool.apply_async(parallel_func, arg) for arg in self.args]
 			out = [r.get() for r in results]
 
+		self.paralllel_sim_duration = time.time() - para_start_time
 		#self.sid['needed_values']  = self.sid['needed_values'] + ['Redshift_Coalescence', 'Redshift_Formation', 'Eccentricity_0', 'Dist', 'T_delay', 'Time_Diff']
-		self.sid['needed_values'] = self.sid['needed_values'] + ['Time_of_Coalescence','Redshift_Coalescence', 'Redshift_Formation', 'Eccentricity_0', 'Dist', 'T_delay', 'Time_Diff']
+		self.sid['needed_values'] = self.sid['needed_values'] + ['Time_of_Coalescence','Redshift_Coalescence', 'Redshift_Formation', 'Eccentricity_0', 'Dist', 'Time_Diff']
 
-		self.sid['needed_values_units'] = self.sid['needed_values_units'] + ['None', 'None', 'None', 'ckpc', 'Years', 'Years']
+		self.sid['needed_values_units'] = self.sid['needed_values_units'] + ['Years', 'None', 'None', 'None', 'ckpc', 'Years']
 
 		#if 'Eccentricity_f' not in self.sid['needed_values']:
 		#	self.sid['needed_values']  = self.sid['needed_values'] + ['Eccentricity_f']
@@ -131,8 +146,6 @@ class SimulationRun:
 
 		
 		self.out_parsed = {key: np.concatenate([r[key] for r in out if r != {}]) for key in self.sid['needed_values']}
-
-		pdb.set_trace()
 		return
 
 	def output_simulation_results(self):
@@ -159,11 +172,13 @@ class SimulationRun:
 			
 			header.attrs['Title'] = 'Black Hole Merger Monte Carlo Simulation'
 			header.attrs['Author'] = 'Michael Katz'
-			header.attrs['Date/Time'] = 'Date/Time: ' + str(self.now)
+			header.attrs['Date/Time'] = str(self.now)
+			header.attrs['Parallel Calculation Time'] = str(self.paralllel_sim_duration) + 'seconds'
 
-			header.attrs['Base_Simulation'] = self.sid['Base_Simulation']
+			header.attrs['Base Simulation'] = self.sid['Base_Simulation']
 			header.attrs['Data Origin File'] = self.sid['input_info']['data_file_name']
 			header.attrs['Evolution'] = self.sid['evolve_info']['evolve_func']
+			header.attrs['KDE File'] = self.sid['mc_generation_info']['kde_output_file']
 			#NEED to ADD Accretion
 
 			header.attrs['Mean Mergers per Box'] = self.sid['mc_generation_info']['mean']
@@ -298,12 +313,21 @@ class MonteCarloInputClass:
 		self.scale_data(0.0+bound, 1.0-bound)		
 		self.data = logit(self.data)
 		self.knuth_bandwidth_determination()
-		kernel_class = gaussian_kde(self.data.T, bw_method=self.bw)
-		self.kernel = gaussian_check(kernel_class, self.scaler, self.sid['needed_values'])
+		getattr(self, self.sid['mc_generation_info']['kde_method'])()
+		self.kernel = gaussian_check(self.kernel_class, self.scaler, self.sid['needed_values'])
+		return
+
+	def scipy_kde(self):
+		self.kernel_class = gaussian_kde(self.data.T, bw_method=self.bw)
+		return
+
+	def scikit_learn_kde(self):
+		self.kernel_class = KernelDensity(bandwidth=self.bw)
+		self.kernel_class.fit(self.data)
 		return
 
 	def dill_dump_of_kernel(self):
-		with open('mc_dump_test.pkl', 'wb') as f:
+		with open(self.sid['input_info']['data_file_location'] + '/' + self.sid['mc_generation_info']['kde_output_file'], 'wb') as f:
 			dill.dump(self.kernel, f, dill.HIGHEST_PROTOCOL)
 		return
 
@@ -318,11 +342,19 @@ class gaussian_check:
 		data_ready = {key:self.data_drawn.T[i] for i,key in enumerate(self.kde_names)}
 		return data_ready
 
-def guide_func(sid):
+
+
+
+def simulation_main(sid):
+	random_function_map = {'normal_distribution': rm.normal}
+
+	sid['mc_generation_info']['function_for_random_generation'] = random_function_map[sid['mc_generation_info']['function_for_random_generation']]
+	
+
 	monte_carlo_input = MonteCarloInputClass(sid)
 
-	if 'mc_dump_test.pkl' in os.listdir():
-		with open('mc_dump_test.pkl', 'rb') as f:
+	if sid['mc_generation_info']['kde_output_file'] in os.listdir(sid['input_info']['data_file_location'] + '/' ):
+		with open(sid['input_info']['data_file_location'] + '/' + sid['mc_generation_info']['kde_output_file'], 'rb') as f:
 			print('READ IN KDE')
 			monte_carlo_input.kernel = dill.load(f)
 			monte_carlo_input.adjust_needed_values()
@@ -334,41 +366,35 @@ def guide_func(sid):
 		monte_carlo_input.make_kernel()
 		monte_carlo_input.dill_dump_of_kernel()
 
+	sid_init = monte_carlo_input.sid.copy()
 
-	simulation = SimulationRun(monte_carlo_input.kernel, monte_carlo_input.sid)
-	simulation.prep_interpolations()
-	simulation.prep_box_coordinates()
-	simulation.prep_parallelization()
-	simulation.run_parallel_simulation()
-	new_file_num = simulation.output_simulation_results()
-	return new_file_num
-
-
-def simulation_main(sid):
-	random_function_map = {'normal_distribution': rm.normal}
-
-	sid['mc_generation_info']['function_for_random_generation'] = random_function_map[sid['mc_generation_info']['function_for_random_generation']]
-
-	sid_init = sid.copy()
-	
 	num_files_out = []
 	start_time = time.time()
-	for i in range(sid_init['num_sims']):
-		print("\nSimulation %i Started\n" %(i+1))
+	for i in np.arange(1,sid_init['num_sims']+1):
+		print("\nSimulation %i Started\n" %(i))
 
 		single_sim_start_time = time.time()
 
 		sid = sid_init.copy()
-		num_file_new = guide_func(sid)
+		simulation = SimulationRun(monte_carlo_input.kernel, sid)
+		simulation.prep_interpolations()
+		simulation.prep_box_coordinates()
+		simulation.prep_parallelization()
+		simulation.run_parallel_simulation()
+		new_file_num = simulation.output_simulation_results()
 
-		num_files_out.append(num_file_new)
+		num_files_out.append(new_file_num)
 
-		print("\nSimulation %i Finished --- %s seconds ---" % (i+1, time.time() - start_time))
-		print("Simulation %i Duration: %s seconds\n" % (i+1, time.time() - single_sim_start_time))
+		del simulation
 
-	print("%i Simulations Completed with output string %s#%s"%(sid['num_sims'],sid['output_info']['out_file_name_start'],sid['output_info']['out_file_type']))
+		print("\nSimulation %i Finished --- %s seconds ---" % (i, time.time() - start_time))
+		print("Simulation %i Duration: %s seconds\n" % (i, time.time() - single_sim_start_time))
+
+	print("%i Simulations Completed with output string %s#.%s"%(sid['num_sims'],sid['output_info']['out_file_name_start'],sid['output_info']['out_file_type']))
 	
 	print('File Numbers: ', num_files_out)
+
+	return
 		
 	
 

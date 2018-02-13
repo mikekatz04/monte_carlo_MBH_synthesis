@@ -1,0 +1,58 @@
+{
+"Base_Simulation": "Illustris_1",
+"num_sims": 2,
+"num_processors": 4,
+"num_splits": 500,
+"needed_values": ["M1", "M2", "Separation", "Coordinate_x", "Coordinate_y", "Coordinate_z", "Subhalo_Vel_Disp_1", "Subhalo_Vel_Disp_2", "Subhalo_gamma_Star_1", "Subhalo_gamma_Star_2"],
+"needed_values_units": ["Solar_Masses", "Solar_Masses", "ckpc", "ckpc", "ckpc", "ckpc", "km/s", "km/s", "None", "None"],
+
+
+"input_info":
+	{
+	"data_file_location": ".",
+	"data_file_name": "Ill1_simulation_input_numerical.txt"
+	},
+
+"output_info":
+	{
+	"output_file_location": ".",
+	"out_file_name_start": "speed_test_",
+	"out_file_type": "hdf5"
+	},
+
+"evolve_info":
+	{
+	"evolve_func": "numerical_based_evole_FD_FA",
+	"evolve_func_args": ["M1", "M2", "Subhalo_Vel_Disp_1", "Subhalo_Vel_Disp_2", "Subhalo_gamma_Star_1", "Subhalo_gamma_Star_2", "Separation", "Redshift", "Eccentricity_0"],
+
+	"eccentricity": 0.0,
+	"e_interp_file": "e_interp_test.txt",
+	"e_interp_file_location": "e_interp_test.txt"
+	},
+
+"mc_generation_info":
+	{
+	"kde_output_file":"mc_dump_test.pkl",
+	"kde_method":"scipy_kde",
+	"kde_bw_determination":"knuth_bandwidth_determination",
+	"bound_on_rescale": 1e-6,
+	"mean": 10,
+	"std_dev_percent": 0.01,
+	"function_for_random_generation": "normal_distribution",
+	"box_side_length": 106.5,
+	"max_time_diff": 1e7,
+	"min_time_diff": -30.0,
+	"LISA_mission_start_year": 2030.0,
+	"LISA_mission_duration": 4.0
+	}
+}
+
+
+
+
+
+
+
+
+
+
